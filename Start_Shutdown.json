@@ -29,7 +29,7 @@ Param(
 
 $connectionName = "AzureRunAsConnection"
 
-function ConnectToMAG
+function ConnectToMAC
 {
 try
 {
@@ -123,6 +123,6 @@ function AssertVmActionByTag
 AssertResourceManagerVirtualMachinePowerState
         }
     }
-ConnectToMAG
+ConnectToMAC
 AssertVmActionByTag
 AssertRGActionbyTag
