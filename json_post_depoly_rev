@@ -1,337 +1,122 @@
+<#PARAMETER  
+    Parameters are read in from Azure Automation variables.  
+    Variables (editable):
+    -  StartShutdown_TagName                :  Tag Name for VMs on Start/Shutdown schedule
+    -  StartShutdown_TagValue               :  Tag Value for VMs on Start/Shutdown schedule
+    -  StartShutdown_SubscriptionName       :  Subscription Name where VMs reside for Start/Shutdown workflow
+    -  StartShutdown_AutomationAcct         :  Name of the Automation Acct
+    -  StartShutdown_ResourceGroup          :  Name of the Resource Group the Automation Acct resides in
+
+    #>
+
+Param(
+    [Parameter(Mandatory=$true,HelpMessage="Enter the desired state, expected values are: Start, Shutdown")]
+    [string]
+    $DesiredState,
+    [Parameter(Mandatory=$true)]
+    [bool]$simulate = $false
+
+)
+
+$connectionName = "AzureRunAsConnection"
+
+function ConnectToMAC
 {
-  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
-  "contentVersion": "1.0.0.0",
-  "parameters": {
-    "accountName": {
-      "type": "String",
-      "defaultvalue": "Automation-AutoStartShutdownVMs",
-      "metadata": {
-        "description": "A valid Azure Automation Account Name"
-      }
-    },
-    "regionId": {
-      "type": "String",
-      "defaultvalue": "usgovvirginia",
-      "metadata": {
-        "description": "Region of the Azure Automation Account"
-      }
-    },
-    "pricingTier": {
-      "type": "String",
-      "defaultvalue": "free",
-      "metadata": {
-        "description": "Pricing tier for the Azure Automation account"
-      }
-    },
-    "resourceGroup": {
-      "type": "String",
-      "metadata": {
-        "description": "This is the Resource Group that the Automation Account belongs to"
-      }
-    },
-    "subscriptionName": {
-      "type": "String",
-      "metadata": {
-        "description": "This is the name of the subscription that the Automation Account belongs to"
-      }
-    },
-    "Daily Start Time": {
-      "type": "String",
-      "defaultValue": "2018-01-31T05:00:00-08:00",
-      "metadata": {
-        "description": "Enter time for starting VMs by resource group.  This is a recurring daily schedule. Set a datetime (current time zone) that is at least 30 minutes from now.  Schedule will be reflected as UTC in the automation account.",
-        "control": "datetime",
-        "category": "Schedule"
-      }
-    },
-    "startRunbookScheduleJobGuidValue": {
-      "type": "String",
-      "defaultValue": "bc7267ac-3c6d-40c0-bf71-0a97314faaa1",
-      "metadata": {
-        "description": "Enter a unique GUID to enable the start schedule.",
-        "control": "guid",
-        "category": "Schedule"
-      }
-    },
-    "Daily Stop Time": {
-      "type": "String",
-      "defaultValue": "2018-01-31T05:00:00-08:00",
-      "metadata": {
-        "description": "Enter time for stopping VMs by resource group.  This is a recurring daily schedule. Set a datetime (current time zone) that is at least 30 minutes from now.  Schedule will be reflected as UTC in the automation account.",
-        "control": "datetime",
-        "category": "Schedule"
-      }
-    },
-    "stopRunbookScheduleJobGuidValue": {
-      "type": "String",
-      "defaultValue": "743e3b0b-7bcd-47af-bbad-4cf67d17647e",
-      "metadata": {
-        "description": "Enter a unique GUID to enable the stop schedule",
-        "control": "guid",
-        "category": "Schedule"
-      }
-    }
-    },
-  "variables": {
-    "AzureRM.Profile": {
-      "name": "AzureRm.Profile",
-      "url": "https://devopsgallerystorage.blob.core.windows.net/packages/azurerm.profile.2.8.0.nupkg"
-    },
-    "psModules": [
-      {
-        "name": "AzureRM.Compute",
-        "url": "https://devopsgallerystorage.blob.core.windows.net/packages/azurerm.compute.2.9.0.nupkg"
-      },
-      {
-        "name": "AzureRm.Resources",
-        "url": "https://devopsgallerystorage.blob.core.windows.net/packages/azurerm.resources.3.8.0.nupkg"
-      },
-      {
-        "name": "AzureRm.KeyVault",
-        "url": "https://devopsgallerystorage.blob.core.windows.net/packages/azurerm.keyvault.2.8.0.nupkg"
-      },
-      {
-        "name": "AzureRm.Automation",
-        "url": "https://devopsgallerystorage.blob.core.windows.net/packages/azurerm.automation.2.8.0.nupkg"
-      },
-      {
-        "name": "AzureRm.OperationalInsights",
-        "url": "https://devopsgallerystorage.blob.core.windows.net/packages/azurerm.operationalinsights.2.8.0.nupkg"
-      },
-      {
-        "name": "AzureRm.Insights",
-        "url": "https://devopsgallerystorage.blob.core.windows.net/packages/azurerm.insights.2.8.0.nupkg"
-      }
-    ],
-    "automationVariables": [
-      {
-        "name": "StartShutdown_AutomationAcct",
-        "description": "Azure Automation Account Name",
-        "value": "[concat('\"',parameters('accountName'),'\"')]"
-      },
-      {
-        "name": "StartShutdown_ResourceGroup",
-        "description": "Azure Resource Group the Automation Account belongs to",
-        "value": "[concat('\"',parameters('resourceGroup'),'\"')]"
-      },
-      {
-        "name": "StartShutdown_SubscriptionName",
-        "description": "Azure Subscription Name the Automation Account belongs to",
-        "value": "[concat('\"',parameters('subscriptionName'),'\"')]"
-      },
-      {
-        "name": "StartShutdown_TagName",
-        "description": "Azure Tag Name for VMs and Resource Groups",
-        "value": "AutoStartShutdown"
-      },
-      {
-        "name": "StartShutdown_TagValue",
-        "description": "Azure Tag Name for VMs and Resource Groups",
-        "value": "True"
-      }
-    ],
-    "AutomationVariable_AutomationAcctName": "StartShutdown_AutomationAcct",
-    "AutomationVariable_AutomationAcctDescription": "Azure Automation Account Name",
-    "AutomationVariable_ResourceGroupName": "StartShutdown_ResourceGroup",
-    "AutomationVariable_ResourceGroupDescription": "Azure Resource Group the Automation Account belongs to",
-    "AutomationVariable_SubscriptionName": "StartShutdown_SubscriptionName",
-    "AutomationVariable_SubscriptionDescription": "Azure Subscription Name the Automation Account belongs to",
-    "AutomationVariable_TagName": "StartShutdown_TagName",
-    "AutomationVariable_TagNameDescription": "Azure Subscription Name the Automation Account belongs to",
-    "AutomationVariable_TagValue": "StartShutdown_TagValue",
-    "AutomationVariable_TagValueDescription": "Azure Tag Name for VMs and Resource Groups",
-    "AutomationTagNameValue": "AutoStartShutdown",
-    "AutomationTagValue":  "True",
-    "StartStopVMVersion": "1.0.0.0",
-    "sku": "Free",
-    "runbookname": "AutoStartShutdownVMs",
-    "RunbookDescription": "Automatically starts up and shuts down Azure Resource Manager VMs based on the presence of the AutoStartShutdown tag",
-    "scriptUri": "https://raw.githubusercontent.com/kylgrn/AutoStartShutdown/master/AutoStartShutdown.ps1",
-    "StartRunbookScheduleInterval": 1,
-    "StartRunbookScheduleFrequency": "Day",
-    "StopRunbookScheduleInterval": 1,
-    "StopRunbookScheduleFrequency": "Day",
-    "StartRunbookScheduleName": "Scheduled-StartVM"
-  },
-  "resources": [
+try
+{
+    # Get the connection "AzureRunAsConnection "
+    $servicePrincipalConnection = Get-AutomationConnection -Name $connectionName      
+
+    "Logging in to Azure..."
+    Add-AzureRmAccount -ServicePrincipal -TenantId $servicePrincipalConnection.TenantId -ApplicationId $servicePrincipalConnection.ApplicationId -CertificateThumbprint   $servicePrincipalConnection.CertificateThumbprint #-environment "AzureCloud"
+}
+catch {
+    if (!$servicePrincipalConnection)
     {
-      "type": "Microsoft.Automation/automationAccounts",
-      "name": "[parameters('accountName')]",
-      "apiVersion": "2015-10-31",
-      "location": "[parameters('regionId')]",
-      "tags": {
-        "StartStopVMVersion": "[variables('StartStopVMVersion')]"
-      },
-      "properties": {
-        "sku": {
-          "name": "[variables('sku')]"
+        $ErrorMessage = "Connection $connectionName not found."
+        throw $ErrorMessage
+    } else{
+        Write-Error -Message $_.Exception
+        throw $_.Exception
+    }
+}
+#$subscriptions = Get-AzureRmSubscription
+#Write-Output $subscriptions
+#Select subscription
+#$Subscriptionname = Get-AutomationVariable -Name "StartShutdown_SubscriptionName"
+#Set-AzureRmSubscription -Subscription $Subscriptionname
+}
+
+#Import tag variables
+$TagName = Get-AutomationVariable -Name "StartShutdown_TagName"
+$TagValue = Get-AutomationVariable -Name "StartShutdown_TagValue"
+
+function AssertResourceManagerVirtualMachinePowerState
+{
+
+    # Get VM with current status
+    $resourceManagerVM = Get-AzureRmVM -ResourceGroupName $vm.ResourceGroupName -Name $vm.Name -Status
+    $currentStatus = $resourceManagerVM.Statuses | where Code -like "PowerState*" 
+    $currentStatus = $currentStatus.Code -replace "PowerState/",""
+
+    # If should be started and isn't, start VM
+	if($DesiredState -eq "Start" -and $currentStatus -notmatch "running")
+	{
+        if($Simulate -eq "True")
+        {
+            Write-Output "[$($vm.Name)]: SIMULATION -- Would have started VM. (No action taken)"
         }
-      }
-    },
+        else
+        {
+            Write-Output "[$($vm.Name)]: Starting VM"
+            $resourceManagerVM | Start-AzureRmVM
+        }
+	}
+		
+	# If should be stopped and isn't, stop VM
+	elseif($DesiredState -eq "Shutdown" -and $currentStatus -ne "deallocated")
+	{
+        if($Simulate -eq "True")
+        {
+            Write-Output "[$($vm.Name)]: SIMULATION -- Would have stopped VM. (No action taken)"
+        }
+        else
+        {
+            Write-Output "[$($vm.Name)]: Stopping VM"
+            $resourceManagerVM | Stop-AzureRmVM -Force
+        }
+	}
+
+    # Otherwise, current power state is correct
+    else
     {
-      "name": "[concat(parameters('accountName'), '/', variables('runbookname'))]",
-      "type": "Microsoft.Automation/automationAccounts/runbooks",
-      "apiVersion": "2015-01-01-preview",
-      "location": "[resourceGroup().location]",
-      "dependsOn": [
-        "[resourceId('Microsoft.Automation/automationAccounts/', parameters('accountName'))]"
-      ],
-      "tags": {},
-      "properties": {
-        "description": "[variables('runbookDescription')]",
-        "logProgress": "false",
-        "logVerbose": "false",
-        "publishContentLink": {
-          "uri": "[variables('scriptUri')]",
-          "version": "1.0.0.0"
-        },
-        "runbookType": "PowerShell"
-      }
-    },
-    {
-      "type": "Microsoft.Automation/automationAccounts/variables",
-      "name": "[concat(parameters('accountName'), '/', variables('AutomationVariable_AutomationAcctName'))]",
-      "apiVersion": "2015-10-31",
-      "tags": {},
-      "properties": {
-        "description": "[variables('AutomationVariable_AutomationAcctDescription')]",
-        "value": "[concat('\"',parameters('accountName'),'\"')]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Automation/automationAccounts/',  parameters('accountName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Automation/automationAccounts/variables",
-      "name": "[concat(parameters('accountName'), '/', variables('AutomationVariable_ResourceGroupName'))]",
-      "apiVersion": "2015-10-31",
-      "tags": {},
-      "properties": {
-        "description": "[variables('AutomationVariable_ResourceGroupDescription')]",
-        "value": "[concat('\"',parameters('resourceGroup'),'\"')]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Automation/automationAccounts/',  parameters('accountName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Automation/automationAccounts/variables",
-      "name": "[concat(parameters('accountName'), '/', variables('AutomationVariable_SubscriptionName'))]",
-      "apiVersion": "2015-10-31",
-      "tags": {},
-      "properties": {
-        "description": "[variables('AutomationVariable_SubscriptionDescription')]",
-        "value": "[concat('\"',parameters('subscriptionName'),'\"')]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Automation/automationAccounts/',  parameters('accountName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Automation/automationAccounts/variables",
-      "name": "[concat(parameters('accountName'), '/', variables('AutomationVariable_TagName'))]",
-      "apiVersion": "2015-10-31",
-      "tags": {},
-      "properties": {
-        "description": "[variables('AutomationVariable_TagNameDescription')]",
-        "value": "[concat('\"',variables('AutomationTagNameValue'),'\"')]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Automation/automationAccounts/',  parameters('accountName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Automation/automationAccounts/variables",
-      "name": "[concat(parameters('accountName'), '/', variables('AutomationVariable_TagValue'))]",
-      "apiVersion": "2015-10-31",
-      "tags": {},
-      "properties": {
-        "description": "[variables('AutomationVariable_TagValueDescription')]",
-        "value": "[concat('\"',variables('AutomationTagValue'),'\"')]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Automation/automationAccounts/',  parameters('accountName'))]"
-      ]
-    },
-    {
-      "type": "microsoft.automation/automationAccounts/schedules",
-      "name": "[concat(parameters('accountname'), '/', 'Scheduled-StartVM')]",
-      "apiVersion": "2015-10-31",
-      "tags": {},
-      "properties": {
-        "description": "Schedule for ScheduledStartStop runbook - start action",
-        "isEnabled": "false",
-        "startTime": "[parameters('Daily Start Time')]",
-        "interval": "[variables('StartRunbookScheduleInterval')]",
-        "frequency": "[variables('StartRunbookScheduleFrequency')]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Automation/automationAccounts', parameters('accountName'))]"
-      ]
-    },
-    {
-      "type": "microsoft.automation/automationAccounts/jobSchedules",
-      "name": "[concat(parameters('accountName'), '/', parameters('StartRunbookScheduleJobGuidValue'))]",
-      "apiVersion": "2015-10-31",
-      "tags": {},
-      "properties": {
-        "schedule": {
-          "name": "Scheduled-StartVM"
-        },
-        "runbook": {
-          "name": "AutoStartShutdownVMs"
-        },
-        "parameters": {
-          "Simulate": "false",
-          "DesiredState": "Start"
-        },
-        "isenabled": "false"
-      },
-      "dependsOn": [
-        "[concat('Microsoft.Automation/automationAccounts/', parameters('accountName'), '/runbooks/AutoStartShutdownVMs')]",
-        "[concat('Microsoft.Automation/automationAccounts/', parameters('accountName'), '/schedules/Scheduled-StartVM')]"
-      ]
-    },
-    {
-      "type": "microsoft.automation/automationAccounts/schedules",
-      "name": "[concat(parameters('accountName'), '/', 'Scheduled-StopVM')]",
-      "apiVersion": "2015-10-31",
-      "tags": {},
-      "properties": {
-        "description": "Schedule for ScheduledStartStop runbook - stop action",
-        "isEnabled": "false",
-        "startTime": "[parameters('Daily Stop Time')]",
-        "interval": "[variables('StopRunbookScheduleInterval')]",
-        "frequency": "[variables('StopRunbookScheduleFrequency')]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Automation/automationAccounts', parameters('accountName'))]"
-      ]
-    },
-    {
-      "type": "microsoft.automation/automationAccounts/jobSchedules",
-      "name": "[concat(parameters('accountName'), '/', parameters('StopRunbookScheduleJobGuidValue'))]",
-      "apiVersion": "2015-10-31",
-      "tags": {},
-      "properties": {
-        "schedule": {
-          "name": "Scheduled-StopVM"
-        },
-        "runbook": {
-          "name": "AutoStartShutdownVMs"
-        },
-        "parameters": {
-          "Simulate": "false",
-          "DesiredState": "Shutdown"
-        },
-        "isenabled": "false"
-      },
-      "dependsOn": [
-        "[concat('Microsoft.Automation/automationAccounts/', parameters('accountName'), '/runbooks/', variables('runbookname'))]",
-        "[concat('Microsoft.Automation/automationAccounts/', parameters('accountName'), '/schedules/Scheduled-StopVM')]",
-        "[resourceId('Microsoft.Automation/automationAccounts', parameters('accountName'))]"
-      ]
+        Write-Output "[$($vm.Name)]: Current power state [$currentStatus] is correct."
     }
-  ],
-    "outputs": {}
-  }
+}
+
+#Start/Shutdown VMs within a tagged resource Group
+function AssertRGActionbyTag
+{
+$vm =@()
+$taggedResourceGroups = Get-AzureRmResourceGroup -Tag @{$TagName = $TagValue}
+#$taggedResourceGroups.ResourceGroupName
+$taggedResourceGroupNames = @($taggedResourceGroups | select -ExpandProperty ResourceGroupName)
+Write-Output "Found [$($taggedResourceGroupnames.Count)] schedule-tagged resource groups in subscription"	
+$vms = foreach ($rgvm in $taggedResourceGroups) {Get-azureRMVM -ResourceGroupName $rgvm.ResourceGroupName}
+foreach ($vm in $vms) {
+AssertResourceManagerVirtualMachinePowerState
+}
+}
+
+
+#Start/Shutdown individual VMs with the defined tag
+function AssertVmActionByTag
+    {
+    $vms = Get-AzureRmResource -TagName $TagName -TagValue $TagValue | where {$_.ResourceType -like "Microsoft.Compute/virtualMachines"} 
+    Foreach ($vm in $vms){
+AssertResourceManagerVirtualMachinePowerState
+        }
+    }
+ConnectToMAC
+AssertVmActionByTag
+AssertRGActionbyTag
